@@ -10,6 +10,7 @@ import { DogService } from "../services/DogService";
 import {UserService} from "../services/UserService";
 import UserDetailsModal from "./ModalUserDetails";
 import {Consultation} from "../model/Consultation";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 
 
@@ -40,7 +41,7 @@ function CRUDING() {
 
     return (
         <div className="container">
-            {loggedIn ? <> <DogList /> <button onClick={handleLogout}>Logout</button> </>  : <LoginAndRegister setLoggedIn={setLoggedIn} />}
+            {loggedIn ? <> <DogList /> <button onClick={handleLogout} style={{ position: "absolute", top: 15, right: 15 }}>Logout</button> </>  : <LoginAndRegister setLoggedIn={setLoggedIn} />}
         </div>
     );
 }
@@ -80,7 +81,11 @@ function DogList() {
     const [isAccountDetailsModalOpen, setIsAccountDetailsModalOpen] = useState<boolean>(false);
     const [userDetails, setUserDetails] = useState<{ username: string; email: string; country: string } | null>(null);
 
+
     const [consultations, setConsultations] = useState<Consultation[]>([]);
+    const [consultationsPage, setConsultationsPage] = useState<number>(1);
+    const [hasMoreConsultations, setHasMoreConsultations] = useState<boolean>(true);
+
 
 
     useEffect(() => {
@@ -369,7 +374,7 @@ function DogList() {
 
     };
 
-    const handleConsultations = async (dogId: number, dog: Dog) => {
+    /*const handleConsultations = async (dogId: number, dog: Dog) => {
         try {
             const consultations = await service.getConsultationsForDog(dogId);
             // Update state to display the consultations
@@ -381,11 +386,104 @@ function DogList() {
             alert('Failed to fetch consultations');
         }
     };
-
-
+*/
+    const handleConsultations = async (dogId: number, dog: Dog) => {
+        try {
+            setCurrentDog(dog);
+            const consultationS = await service.getConsultationsForDogPaginated(dogId, consultationsPage, 50);
+            setConsultations([...consultations, ...consultationS]);
+            setConsultationsPage(page => page + 1);
+            setCurrentDog(dog);
+            if (consultations.length === 0) {
+                setHasMoreConsultations(false);
+            }
+        } catch (error) {
+            console.error('Error fetching consultations:', error);
+            alert('Failed to fetch consultations');
+        }
+    };
 
 
     return (
+        <div className="container" style={{ margin: "20px" }}>
+            <div className="left">
+                <h1>Dogs List</h1>
+                {!serverIsUp && (<p style={{ color: 'red', fontSize: '18px' }}>Server is down</p>)}
+                <div>
+                    <button onClick={openAccountDetailsModal}>See Account Details</button>
+                    <UserDetailsModal isOpen={isAccountDetailsModalOpen} onClose={closeAccountDetailsModal} userDetails={userDetails} />
+                </div>
+                <div>
+                    {serverIsUp && (<input
+                        className="input"
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => handleSearchQueryChange(e.target.value)}
+                        placeholder="Search dog by name..."
+                    />)}
+                </div>
+                <div>
+                    <ul className="list-group">
+                        {filteredDogs.map((dog, index) => (
+                            <li key={dog.getId()} className="list-group-item" id={`list-item-${dog.getId()}`} data-testid={`list-item-${dog.getId()}`}>
+                                <strong>{dog.getName()}</strong> - Weight: {dog.getWeight()} kg, Age: {dog.getAge()} years
+                                {/*<button onClick={() => handleDelete(index)}>X</button>*/}
+                                <button onClick={() => handleDelete(dog.getId())} id={`delete-button-${dog.getId()}`} data-testid={`delete-button-${dog.getId()}`}>X</button>
+                                {/* <button onClick={() => handleUpdate(index)} id={`update-button-${dog.getId()}`}>Update</button>*/}
+                                <button onClick={() => handleUpdate(index, dog)} id={`update-button-${dog.getId()}`} data-testid={`update-button-${dog.getId()}`}>Update</button>
+                                {serverIsUp && (<button onClick={() => handleConsultations(dog.getId(), dog)}>See Consultations</button>)}
+                            </li>
+                        ))}
+                    </ul>
+                    <ul className="pagination" style={{ display: 'flex', listStyle: 'none' }}>
+                        {Array.from({ length: Math.ceil(numberFilteredDogs / dogsPerPage) }, (_, i) => (
+                            <li key={i} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
+                                <button onClick={() => paginate(i + 1)} className="page-link">{i + 1}</button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                {isModalOpenUpdate && selectedDogIndex != null && (
+                    <ModalUpdate isOpen={true} onClose={handleCloseModalUpdate} onSubmit={handleUpdateSubmit} dog={currentDog} />
+                )}
+                <button onClick={() => handleAdd()}>Add Dog</button>
+                {isModalOpenAdd && (
+                    <ModalAddDog isOpen={true} onClose={handleCloseModalAdd} onSubmit={handleAddSubmit} />
+                )}
+
+                {serverIsUp && (
+                    <div>
+                        <h2>Consultations List for {currentDog.getName()}</h2>
+                        <InfiniteScroll
+                            dataLength={consultations.length}
+                            next={() => handleConsultations(currentDog.getId(), currentDog)}
+                            hasMore={hasMoreConsultations}
+                            loader={<h4>Loading...</h4>}
+                            endMessage={<p>No more consultations</p>}
+                        >
+                            <ul>
+                                {consultations.map((consultation, index) => (
+                                    <li key={index}>
+                                        <p>Date: {new Date(consultation.date).toLocaleString()}</p>
+                                        <p>Medication Used: {consultation.medicationUsed}</p>
+                                        <p>Notes: {consultation.notes}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </InfiniteScroll>
+                    </div>
+                )}
+
+            </div>
+            <div className="right" style={{ marginTop: "190px", width: "800px" }} data-testid="bar-chart">
+                {chartData && <BarChart chartData={chartData} />}
+            </div>
+        </div>
+    );
+
+
+
+    /*return (
         <div className="container">
 
             <div className="left">
@@ -410,7 +508,7 @@ function DogList() {
                         className="input"
                         type="text"
                         value={searchQuery}
-                        /*onChange={(e) => setSearchQuery(e.target.value)}*/
+                        /!*onChange={(e) => setSearchQuery(e.target.value)}*!/
                         onChange={(e) =>  handleSearchQueryChange(e.target.value)}
                         placeholder="Search dog by name..."
                     />)}
@@ -423,9 +521,9 @@ function DogList() {
                         {filteredDogs.map((dog, index) => (
                             <li key={dog.getId()} className="list-group-item" id={`list-item-${dog.getId()}`} data-testid={`list-item-${dog.getId()}`}>
                                 <strong>{dog.getName()}</strong> - Weight: {dog.getWeight()} kg, Age: {dog.getAge()} years
-                                {/*<button onClick={() => handleDelete(index)}>X</button>*/}
+                                {/!*<button onClick={() => handleDelete(index)}>X</button>*!/}
                                 <button onClick={() => handleDelete(dog.getId())} id={`delete-button-${dog.getId()}`} data-testid={`delete-button-${dog.getId()}`}>X</button>
-                                {/* <button onClick={() => handleUpdate(index)} id={`update-button-${dog.getId()}`}>Update</button>*/}
+                                {/!* <button onClick={() => handleUpdate(index)} id={`update-button-${dog.getId()}`}>Update</button>*!/}
                                 <button onClick={() => handleUpdate(index, dog)} id={`update-button-${dog.getId()}`} data-testid={`update-button-${dog.getId()}`}>Update</button>
                                 {serverIsUp && (<button onClick={() => handleConsultations(dog.getId(), dog)}>See Consultations</button>)}
                             </li>
@@ -433,7 +531,7 @@ function DogList() {
                     </ul>
 
                     <ul className="pagination" style={{ display: 'flex', listStyle: 'none' }}>
-                        {/*we compute the number of pages needed*/}
+                        {/!*we compute the number of pages needed*!/}
                         {Array.from({ length: Math.ceil(numberFilteredDogs / dogsPerPage) }, (_, i) => (
                             <li key={i} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
                                 <button onClick={() => paginate(i + 1)} className="page-link">{i + 1}</button>
@@ -458,7 +556,7 @@ function DogList() {
                     <ul>
                         {consultations.map((consultation, index) => (
                             <li key={index}>
-                                {/* Render consultation details here */}
+                                {/!* Render consultation details here *!/}
                                 <p>Date:{new Date(consultation.date).toLocaleString()}</p>
                                 <p>Medication Used: {consultation.medicationUsed}</p>
                                 <p>Notes: {consultation.notes}</p>
@@ -481,7 +579,8 @@ function DogList() {
 
         </div>
 
-    );}
+    );*/
+}
 
 function LoginAndRegister({ setLoggedIn }: { setLoggedIn: React.Dispatch<React.SetStateAction<boolean>> }) {
 

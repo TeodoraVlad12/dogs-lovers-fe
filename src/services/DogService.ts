@@ -537,6 +537,21 @@ export class DogService {
         }
     }
 
+    getConsultationsForDogPaginated = async (dogId: number, page: number, limit: number)=> {
+        try {
+            console.log("getConsultationsForDogPaginated is called");
+            const response = await axios.get(`${appConfig.apiUrl}/dogs/consultation/${dogId}`, {
+                params: { page, limit }
+            });
+            return response.data;
+        } catch (error) {
+            if (dogId == 0){
+                return [];
+            }
+        }
+    };
+
+
 
 
 
